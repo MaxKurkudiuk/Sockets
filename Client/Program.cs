@@ -1,10 +1,13 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using Shared;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Linq;
 using System.Xml.Serialization;
 
 namespace Client
@@ -16,7 +19,7 @@ namespace Client
     }
     class Program
     {
-        static async Task SendAsync<T>(NetworkStream networkStream, T message)
+        /*static async Task SendAsync<T>(NetworkStream networkStream, T message)
         {
             var (header, body) = Encode(message);
             await networkStream.WriteAsync(header, 0, header.Length).ConfigureAwait(false);
@@ -66,14 +69,16 @@ namespace Client
                 bytesRead += bytesReceived;
             }
             return buffer;
-        }
+        }*/
+
+        private const int PORT = 9000;
 
         static async Task Main(string[] args)
         {
             Console.WriteLine("Press Enter to Connect");
             Console.ReadLine();
 
-            var endPoint = new IPEndPoint(IPAddress.Loopback, 9000);
+            var endPoint = new IPEndPoint(IPAddress.Loopback, PORT);
             var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             socket.Connect(endPoint);
             var networkStream = new NetworkStream(socket, true);
@@ -100,15 +105,27 @@ namespace Client
             Console.WriteLine("Sending");
             Print(myMessage);
 
-            await SendAsync(networkStream, myMessage).ConfigureAwait(false);
+            var protocol = new XmlMessageProtocol();
+            //var protocol = new JsonMessageProtocol();
+            await protocol.SendAsync(networkStream, myMessage).ConfigureAwait(false);
 
-            var responseMsg = await ReceiveAsync<MyMessage>(networkStream).ConfigureAwait(false);
+            //await SendAsync(networkStream, myMessage).ConfigureAwait(false);
+            //var responseMsg = await ReceiveAsync<MyMessage>(networkStream).ConfigureAwait(false);
+
+            var responseMsg = await protocol.ReceiveAsync(networkStream).ConfigureAwait(false);
+
+            var response = Convert(responseMsg as dynamic);
 
             Console.WriteLine("Received");
-            Print(responseMsg);
+            Print(response);
 
             Console.ReadLine();
         }
+
+        static MyMessage Convert(JObject jObj)
+            => jObj.ToObject(typeof(MyMessage)) as MyMessage;
+        static MyMessage Convert(XDocument xDoc)
+            => new XmlSerializer(typeof(MyMessage)).Deserialize(new StringReader(xDoc.ToString())) as MyMessage;
 
         static void Print(MyMessage m) => Console.WriteLine($"MyMessage.IntProperty = {m.IntProperty}, MyMessage.StringProperty = {m.StringProperty}");
     }
