@@ -31,6 +31,9 @@ namespace Shared
             _networkStream?.Close();
         }
 
+        public async Task SendAsync<T>(T message)
+            => await _protocol.SendAsync(_networkStream, message).ConfigureAwait(false);
+
         protected virtual async Task ReceiveLoop() {
             while (!_cancellationTokenSource.Token.IsCancellationRequested) {
                 //TODO: Pass Cancellation Token to Protocol method

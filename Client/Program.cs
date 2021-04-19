@@ -19,58 +19,6 @@ namespace Client
     }
     class Program
     {
-        /*static async Task SendAsync<T>(NetworkStream networkStream, T message)
-        {
-            var (header, body) = Encode(message);
-            await networkStream.WriteAsync(header, 0, header.Length).ConfigureAwait(false);
-            await networkStream.WriteAsync(body, 0, body.Length).ConfigureAwait(false);
-        }
-
-        static async Task<T> ReceiveAsync<T>(NetworkStream networkStream)
-        {
-            var headerBytes = await ReadAsync(networkStream, 4);
-            var bodyLength = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(headerBytes));
-
-            var bodyBytes = await ReadAsync(networkStream, bodyLength);
-
-            return Decode<T>(bodyBytes);
-        }
-
-        static (byte[] header, byte[] body) Encode<T>(T message)
-        {
-            var xs = new XmlSerializer(typeof(T));
-            var sb = new StringBuilder();
-            var sw = new StringWriter(sb);
-            xs.Serialize(sw, message);
-
-            var bodyBytes = Encoding.UTF8.GetBytes(sb.ToString());
-            var headerBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bodyBytes.Length));
-
-            return (headerBytes, bodyBytes);
-        }
-
-        static T Decode<T>(byte[] body)
-        {
-            var str = Encoding.UTF8.GetString(body);
-            var sr = new StringReader(str);
-            var xs = new XmlSerializer(typeof(T));
-            return (T)xs.Deserialize(sr);
-        }
-
-        static async Task<byte[]> ReadAsync(NetworkStream networkStream, int bytesToRead)
-        {
-            var buffer = new byte[bytesToRead];
-            var bytesRead = 0;
-            while(bytesRead < bytesToRead)
-            {
-                var bytesReceived = await networkStream.ReadAsync(buffer, bytesRead, (bytesToRead - bytesRead)).ConfigureAwait(false);
-                if (bytesReceived == 0)
-                    throw new Exception("Socket Closed");
-                bytesRead += bytesReceived;
-            }
-            return buffer;
-        }*/
-
         private const int PORT = 9000;
 
         static async Task Main(string[] args)
@@ -79,25 +27,15 @@ namespace Client
             Console.ReadLine();
 
             var endPoint = new IPEndPoint(IPAddress.Loopback, PORT);
-            var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            socket.Connect(endPoint);
-            var networkStream = new NetworkStream(socket, true);
 
-            /*var msg = "Hello World!";
+            var channel = new ClientChannel<JsonMessageProtocol, JObject>();
+            //var channel = new ClientChannel<XmlMessageProtocol, XDocument>();
 
-            var buffer = System.Text.Encoding.UTF8.GetBytes(msg);
+            channel.OnMessage(OnMessage);
 
-            networkStream.Write(buffer, 0, buffer.Length);
+            await channel.ConnectAsync(endPoint).ConfigureAwait(false);
 
-            var response = new byte[1024];
-
-            var bytesRead = networkStream.Read(response, 0, response.Length);
-            var responseStr = System.Text.Encoding.UTF8.GetString(response);
-
-            Console.WriteLine($"Received : {responseStr}"); */
-
-            var myMessage = new MyMessage
-            {
+            var myMessage = new MyMessage {
                 IntProperty = 404,
                 StringProperty = "Hello World!"
             };
@@ -105,21 +43,20 @@ namespace Client
             Console.WriteLine("Sending");
             Print(myMessage);
 
-            var protocol = new XmlMessageProtocol();
-            //var protocol = new JsonMessageProtocol();
-            await protocol.SendAsync(networkStream, myMessage).ConfigureAwait(false);
-
-            //await SendAsync(networkStream, myMessage).ConfigureAwait(false);
-            //var responseMsg = await ReceiveAsync<MyMessage>(networkStream).ConfigureAwait(false);
-
-            var responseMsg = await protocol.ReceiveAsync(networkStream).ConfigureAwait(false);
-
-            var response = Convert(responseMsg as dynamic);
-
-            Console.WriteLine("Received");
-            Print(response);
+            await channel.SendAsync(myMessage).ConfigureAwait(false);
 
             Console.ReadLine();
+        }
+
+        static Task OnMessage(JObject jObject) {
+            Console.WriteLine("Received JObject Message");
+            Print(Convert(jObject));
+            return Task.CompletedTask;
+        }
+        static Task OnMessage(XDocument xDoc) {
+            Console.WriteLine("Received XDocument Message");
+            Print(Convert(xDoc));
+            return Task.CompletedTask;
         }
 
         static MyMessage Convert(JObject jObj)
