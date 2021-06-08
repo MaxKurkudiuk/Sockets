@@ -37,9 +37,10 @@ namespace Server
                 do
                 {
                     int byteRead = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-
                     if (byteRead == 0)
                         break;
+                    //var message = Encoding.UTF8.GetString(buffer);
+                    //Console.WriteLine($"Message: {message.Trim()}");
 
                     await stream.WriteAsync(buffer, 0, byteRead).ConfigureAwait(false);
                 } while (true);

@@ -12,13 +12,11 @@ using System.Xml.Serialization;
 
 namespace Client
 {
-    public class MyMessage
-    {
+    public class MyMessage {
         public string StringProperty { get; set; }
         public int IntProperty { get; set; }
     }
-    class Program
-    {
+    class Program {
         private const int PORT = 9000;
 
         static async Task Main(string[] args)
