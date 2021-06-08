@@ -1,70 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using Shared.Messages;
+using Shared.Xml;
+using System;
 using System.Threading.Tasks;
-using System.Xml.Linq;
-using System.Xml.XPath;
 
 namespace ScratchPad {
-
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class RouteAttribute : Attribute {
-        public string Path { get; }
-        public RouteAttribute(string path) => Path = path;
-    }
-
-    public abstract class MessageDispather<TMessageType> where TMessageType : class, new() {
-        public abstract void Register<TParam, TResult>(Func<TParam, Task<TResult>> target);
-        public abstract void Register<TParam>(Func<TParam, Task> target);
-        public abstract Task<TMessageType?> DispatchAsync(TMessageType message);
-    }
-
-    public class XDocumentMessageDispatcher : MessageDispather<XDocument> {
-        readonly List<(string xpathExpression, Func<XDocument, Task<XDocument?>> targetMethod)> _handlers = new List<(string xpathExpression, Func<XDocument, Task<XDocument?>> targetMethod)>();
-
-        public override async Task<XDocument?> DispatchAsync(XDocument message) {
-            foreach (var (xpath, target) in _handlers) {
-                if ((message.XPathEvaluate(xpath) as bool?) == true)
-                    return await target(message);
-            }
-            // No handler?? what to do??
-            return null;
-        }
-
-        public override void Register<TParam, TResult>(Func<TParam, Task<TResult>> target) {
-            var xpathRouteExpression = GetXPathRoute(target.Method);
-
-            var wrapper = new Func<XDocument, Task<XDocument?>>(async xml => {
-                var @param = XmlSerialization.Deserialize<TParam>(xml);
-                var result = await target(@param);
-
-                if (result != null)
-                    return XmlSerialization.Serialize(result);
-                else
-                    return null;
-            });
-            _handlers.Add((xpathRouteExpression, wrapper));
-        }
-
-        public override void Register<TParam>(Func<TParam, Task> target) {
-            var xpathRouteExpression = GetXPathRoute(target.Method);
-
-            var wrapper = new Func<XDocument, Task<XDocument?>>(async xml => {
-                var @param = XmlSerialization.Deserialize<TParam>(xml);
-                await target(@param);
-                return null;
-            });
-            _handlers.Add((xpathRouteExpression, wrapper));
-        }
-
-        private string GetXPathRoute(MethodInfo mi) {
-            var routeAttribute = mi.GetCustomAttribute<RouteAttribute>();
-            if (routeAttribute == null)
-                throw new ArgumentException($"Method {mi.Name} missing required RouteAttribute");
-            return $"boolean({routeAttribute.Path})";
-        }
-    }
-
     class Program {
         static async Task Main(string[] args) {
             var messageHandler = new XDocumentMessageDispatcher();
